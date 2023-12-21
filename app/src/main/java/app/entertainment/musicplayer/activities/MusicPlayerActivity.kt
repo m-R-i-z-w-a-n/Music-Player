@@ -213,7 +213,11 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
             musicService!!.mediaPlayer!!.pause()
             Log.d("notification", "Pausing music")
             binding.imgPausePlay.setImageResource(R.drawable.ic_baseline_play_circle_24)
-            NotificationProvider.showNotification(this, musicService!!, R.drawable.ic_notification_play_circle_24)
+            NotificationProvider.showNotification(
+                this,
+                musicService!!,
+                R.drawable.ic_notification_play_circle_24
+            )
         } else {
             musicService!!.mediaPlayer!!.start()
             Log.d("notification", "Starting music")
@@ -282,11 +286,16 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
      * Handle song completion, automatically play the next song in the playlist
      */
     override fun onCompletion(mp: MediaPlayer?) {
-        if (songIndex == songsList!!.lastIndex)
         // don't play next song automatically, if current song is last
-            return
-        else
-            binding.imgNext.performClick()
+        if (songIndex == songsList!!.lastIndex) return
+
+        binding.imgNext.performClick()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+
+        unregisterReceiver(notificationReceiver)
     }
 
     companion object {
