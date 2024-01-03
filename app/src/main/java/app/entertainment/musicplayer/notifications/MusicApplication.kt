@@ -23,7 +23,7 @@ import app.entertainment.musicplayer.utils.PREVIOUS
 import app.entertainment.musicplayer.utils.STOP
 import app.entertainment.musicplayer.utils.getImageArt
 
-class NotificationProvider : Application() {
+class MusicApplication : Application() {
     // This method is called when the application is created
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate() {
@@ -55,9 +55,7 @@ class NotificationProvider : Application() {
             notificationManager.notify(NOTIFICATION_ID, notification)
         }
 
-        fun dismissNotification() {
-            notificationManager.cancel(NOTIFICATION_ID)
-        }
+        fun dismissNotification() = notificationManager.cancel(NOTIFICATION_ID)
 
         /**
          * Creates a notification with playback controls
@@ -78,6 +76,12 @@ class NotificationProvider : Application() {
 
             val stopIntent = Intent(context, NotificationReceiver::class.java).setAction(STOP)
             val stopPendingIntent = PendingIntent.getBroadcast(context, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE)
+
+            val activityIntent = Intent(context, MusicPlayerActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+            val activityPendingIntent = PendingIntent.getActivity(context, 0, activityIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
             return NotificationCompat.Builder(context, CHANNEL_ID).apply {
                 // Set notification title, icons, and style
@@ -115,6 +119,8 @@ class NotificationProvider : Application() {
                     "Stop",
                     stopPendingIntent
                 )
+
+//                setContentIntent(activityPendingIntent)
             }
         }
 
@@ -140,10 +146,10 @@ class NotificationProvider : Application() {
             val imageArt =
                 getImageArt(MusicPlayerActivity.songsList!![MusicPlayerActivity.songIndex].path)
 
-            return if (imageArt != null)
-                BitmapFactory.decodeByteArray(imageArt, 0, imageArt.size)
-            else
-                BitmapFactory.decodeResource(context.resources, R.drawable.ic_music_icon_big)
+            return imageArt?.let {
+                BitmapFactory.decodeByteArray(it, 0, it.size)
+            } ?: BitmapFactory.decodeResource(context.resources, R.drawable.ic_music_icon_big)
+
         }
     }
 }

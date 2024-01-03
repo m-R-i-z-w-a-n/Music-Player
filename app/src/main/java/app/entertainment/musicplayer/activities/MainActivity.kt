@@ -26,7 +26,6 @@ class MainActivity : AppCompatActivity() {
 
     private val songsList = ArrayList<Song>()
     private lateinit var layoutManager: LinearLayoutManager
-    private var scrollPosition = 0
     private var backPressCount: Int = 0
 
     private lateinit var binding: ActivityMainBinding
@@ -80,7 +79,7 @@ class MainActivity : AppCompatActivity() {
                 if (filePath.contains("whatsapp") || !filePath.endsWith(".mp3"))
                     continue
 
-                // Create Song objects and add them to the list
+                // Create Song object and add it to the list
                 val song = Song(
                     filePath,
                     getString(titleColumn),
@@ -174,10 +173,13 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
 
-        binding.recyclerViewSongs.adapter = SongAdapter(songsList, this)
+        binding.recyclerViewSongs.adapter = SongAdapter(songsList, this).also {
+            it.notifyDataSetChanged()
+        }
 
         // Scroll to current playing song
-        if (MusicPlayerActivity.songIndex != RecyclerView.NO_POSITION)
-            layoutManager.scrollToPosition(MusicPlayerActivity.songIndex)
+        val songIndex = MusicPlayerActivity.songIndex
+        if (songIndex != RecyclerView.NO_POSITION)
+            layoutManager.scrollToPosition(songIndex)
     }
 }

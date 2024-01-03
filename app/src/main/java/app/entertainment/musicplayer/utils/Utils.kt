@@ -5,9 +5,9 @@ import android.media.MediaMetadataRetriever
 /**
  * Retrieve the album art of a song given its path
  *
- * @param path location of the song to get albumArt of
+ * @param path Location of the song to get albumArt of
  *
- * @return returns target image art as ByteArray
+ * @return Returns target image art as ByteArray
  */
 fun getImageArt(path: String): ByteArray? {
     val retriever = MediaMetadataRetriever()

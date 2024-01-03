@@ -17,7 +17,7 @@ import androidx.appcompat.app.AppCompatActivity
 import app.entertainment.musicplayer.R
 import app.entertainment.musicplayer.databinding.ActivityMusicPlayerBinding
 import app.entertainment.musicplayer.models.Song
-import app.entertainment.musicplayer.notifications.NotificationProvider
+import app.entertainment.musicplayer.notifications.MusicApplication
 import app.entertainment.musicplayer.services.MusicService
 import app.entertainment.musicplayer.utils.NEXT
 import app.entertainment.musicplayer.utils.PLAY_PAUSE
@@ -29,7 +29,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.IOException
-import java.lang.IllegalArgumentException
 import java.util.concurrent.TimeUnit
 
 
@@ -38,6 +37,7 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
     private lateinit var currentSong: Song
 
     private lateinit var binding: ActivityMusicPlayerBinding
+    private lateinit var musicServiceIntent: Intent
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,6 +101,7 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
      */
     private fun startMusicService() {
         Intent(this, MusicService::class.java).also {
+            musicServiceIntent = it
             bindService(it, serviceConnection, BIND_AUTO_CREATE)
             startService(it)
         }
@@ -123,7 +124,7 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
             // Change SeekBar progress and time in RealTime
             changeSeekBarProgress()
             // Show a notification for the currently playing song
-            NotificationProvider.showNotification(this@MusicPlayerActivity, musicService!!)
+            MusicApplication.showNotification(this@MusicPlayerActivity, musicService!!)
         }
 
         // This method is called when the connection to the MusicService is (unexpectedly) disconnected
@@ -140,8 +141,6 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
      * Initialize the MediaPlayer and start playing the selected song
      */
     private fun initializeMediaPlayer() {
-        if (musicService!!.mediaPlayer == null)
-            musicService!!.mediaPlayer = MediaPlayer()
         musicService!!.mediaPlayer!!.apply {
             reset()
             try {
@@ -153,13 +152,11 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
                 setOnCompletionListener(this@MusicPlayerActivity)
             } catch (exception: IOException) {
                 exception.printStackTrace()
-            } catch (e: IllegalStateException) {
-                e.printStackTrace()
-                Toast.makeText(
-                    this@MusicPlayerActivity,
-                    "File might be corrupted!",
-                    Toast.LENGTH_LONG
-                ).show()
+            } catch (exception: IllegalStateException) {
+                exception.printStackTrace()
+                Toast.makeText(this@MusicPlayerActivity, "File might be corrupted!", Toast.LENGTH_LONG).show()
+            } catch (exception: Exception) {
+                exception.printStackTrace()
             }
         }
     }
@@ -180,7 +177,7 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
         Log.d("notification", "Playing Next song")
 
         // Update notification
-        NotificationProvider.showNotification(this@MusicPlayerActivity, musicService!!)
+        MusicApplication.showNotification(this@MusicPlayerActivity, musicService!!)
     }
 
     /**
@@ -199,7 +196,7 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
         Log.d("notification", "Playing Previous song")
 
         // Update notification
-        NotificationProvider.showNotification(this@MusicPlayerActivity, musicService!!)
+        MusicApplication.showNotification(this@MusicPlayerActivity, musicService!!)
     }
 
     /**
@@ -213,7 +210,7 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
             musicService!!.mediaPlayer!!.pause()
             Log.d("notification", "Pausing music")
             binding.imgPausePlay.setImageResource(R.drawable.ic_baseline_play_circle_24)
-            NotificationProvider.showNotification(
+            MusicApplication.showNotification(
                 this,
                 musicService!!,
                 R.drawable.ic_notification_play_circle_24
@@ -222,7 +219,7 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
             musicService!!.mediaPlayer!!.start()
             Log.d("notification", "Starting music")
             binding.imgPausePlay.setImageResource(R.drawable.ic_baseline_pause_circle_24)
-            NotificationProvider.showNotification(this, musicService!!)
+            MusicApplication.showNotification(this, musicService!!)
         }
     }
 
@@ -243,8 +240,7 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
 
     private val notificationReceiver: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            val action = intent.action
-            if (action != null) {
+            intent.action?.let { action ->
                 when (action) {
                     PLAY_PAUSE -> pausePlaySong()
 
@@ -256,19 +252,18 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
                         // Stop the foreground service and release resources
                         musicService!!.mediaPlayer!!.pause()
 
-                        NotificationProvider.dismissNotification()
+                        MusicApplication.dismissNotification()
 
                         // Change music player icon to play
                         binding.imgPausePlay.setImageResource(R.drawable.ic_baseline_play_circle_24)
 
                         // Stop the service and unbind it
-                        musicService!!.stopSelf()
+                        musicService!!.stopService(musicServiceIntent)
                         unbindService(serviceConnection)
                         return
                     }
                 }
-            } else
-                Toast.makeText(context, "Action is NULL", Toast.LENGTH_LONG).show()
+            } ?: Toast.makeText(context, "Action is NULL", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -292,15 +287,11 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
         binding.imgNext.performClick()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-
-        unregisterReceiver(notificationReceiver)
-    }
-
     companion object {
         var songsList: ArrayList<Song>? = null
+            private set
         var songIndex: Int = -1
+            private set
         private var musicService: MusicService? = null
 
         /**

@@ -10,6 +10,7 @@ import android.os.IBinder
 class MusicService : Service() {
     // MediaPlayer instance to handle music playback
     var mediaPlayer: MediaPlayer? = null
+        private set
 
     // MyBinder instance for binding the service to clients
     private var myBinder = MyBinder()
@@ -21,13 +22,9 @@ class MusicService : Service() {
         initMediaPlayer()
     }
 
-    override fun onBind(intent: Intent?): IBinder? {
-        return myBinder
-    }
+    override fun onBind(intent: Intent?): IBinder = myBinder
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        return START_NOT_STICKY
-    }
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_NOT_STICKY
 
     /**
      * Initializes the MediaPlayer instance
@@ -45,10 +42,6 @@ class MusicService : Service() {
                 build()
             }
         )
-
-        // Initialize SeekBar progress
-//        MusicPlayerActivity.binding.seekBar.progress = 0
-//        MusicPlayerActivity.binding.seekBar.max = mediaPlayer!!.duration
     }
 
     // Inner class for Binder to allow clients to interact with this service
