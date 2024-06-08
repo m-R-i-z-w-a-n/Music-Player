@@ -13,16 +13,18 @@ class MusicService : Service() {
         private set
 
     // MyBinder instance for binding the service to clients
-    private var myBinder = MyBinder()
+    private var myBinder: MyBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+
+        myBinder = MyBinder()
 
         // Initialize the MediaPlayer instance
         initMediaPlayer()
     }
 
-    override fun onBind(intent: Intent?): IBinder = myBinder
+    override fun onBind(intent: Intent?): IBinder? = myBinder
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_NOT_STICKY
 
@@ -42,6 +44,11 @@ class MusicService : Service() {
                 build()
             }
         )
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        myBinder = null
     }
 
     // Inner class for Binder to allow clients to interact with this service

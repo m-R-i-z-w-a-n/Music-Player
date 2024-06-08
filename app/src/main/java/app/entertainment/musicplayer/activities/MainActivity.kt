@@ -1,5 +1,8 @@
 package app.entertainment.musicplayer.activities
 
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.Uri
 import android.os.Build
@@ -8,17 +11,14 @@ import android.provider.MediaStore
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import app.entertainment.musicplayer.adapters.SongAdapter
 import app.entertainment.musicplayer.databinding.ActivityMainBinding
 import app.entertainment.musicplayer.models.Song
-import com.karumi.dexter.Dexter
-import com.karumi.dexter.PermissionToken
-import com.karumi.dexter.listener.PermissionDeniedResponse
-import com.karumi.dexter.listener.PermissionGrantedResponse
-import com.karumi.dexter.listener.PermissionRequest
-import com.karumi.dexter.listener.single.PermissionListener
 import java.io.File
 
 
@@ -38,7 +38,10 @@ class MainActivity : AppCompatActivity() {
         layoutManager = LinearLayoutManager(this)
 
         // Check for necessary permissions
-        checkPermissions()
+        if (isPermissionGranted())
+            queryAudioFiles()
+        else
+            requestStoragePermission()
     }
 
     private fun queryAudioFiles() {
@@ -53,7 +56,7 @@ class MainActivity : AppCompatActivity() {
 
         // Determine the appropriate URI based on Android version
         val songLibraryUri: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL);
+            MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         } else {
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
         }
@@ -67,23 +70,22 @@ class MainActivity : AppCompatActivity() {
             sortOrder
         ) as Cursor
 
-        cursor.apply {
-            val titleColumn = getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
-            val durationColumn = getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-            val filePathColumn = getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+        cursor.use {
+            val titleColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+            val durationColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val filePathColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
 
-            while (moveToNext()) {
-                val filePath = getString(filePathColumn)
+            while (it.moveToNext()) {
+                val filePath = it.getString(filePathColumn) ?: continue
 
                 // Skip audio files from specific directories or non-MP3 files
                 if (filePath.contains("whatsapp") || !filePath.endsWith(".mp3"))
                     continue
 
-                // Create Song object and add it to the list
                 val song = Song(
                     filePath,
-                    getString(titleColumn),
-                    getLong(durationColumn)
+                    it.getString(titleColumn),
+                    it.getLong(durationColumn)
                 )
 
                 // Check if the file associated with the song exists and has a non-zero length.
@@ -92,76 +94,74 @@ class MainActivity : AppCompatActivity() {
                 if (file.exists() && file.length() > 0)
                     songsList.add(song)
             }
-            // Close the cursor to release associated resources
-            cursor.close()
         }
 
         // Show the list of songs or a "no songs found" message
         if (songsList.isEmpty())
             binding.tvNoSongsFound.visibility = View.VISIBLE
         else
-            showSongsList()
+            showSongsList(songsList)
     }
 
-    private fun showSongsList() {
+    private fun showSongsList(songsList: ArrayList<Song>) {
         // Configure the RecyclerView to display the list of songs
         binding.recyclerViewSongs.apply {
             layoutManager = this@MainActivity.layoutManager
             setHasFixedSize(true)
-            adapter = SongAdapter(songsList, this@MainActivity).also {
-                it.notifyDataSetChanged()
+            adapter = SongAdapter(this@MainActivity, lifecycleScope).also {
+                it.updateList(songsList)
             }
         }
     }
 
-    private fun checkPermissions() {
-        val permissions = arrayListOf<String>()
-        permissions.add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-
-        // Check for additional permission based on Android version
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-            permissions.add(android.Manifest.permission.READ_MEDIA_AUDIO)
-
-        // Request the specified permissions using Dexter library
-        permissions.forEach(::actAccordingToPermission)
+    private fun isPermissionGranted(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.READ_MEDIA_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+        } else ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
-    /**
-     * Performs actions based on permission's denial or acceptance
-     */
-    private fun actAccordingToPermission(permission: String) {
-        Dexter.withContext(this@MainActivity)
-            .withPermission(permission)
-            .withListener(object : PermissionListener {
-                override fun onPermissionGranted(p0: PermissionGrantedResponse?) {
-                    // Permission granted, query and display audio files
-                    queryAudioFiles()
-                }
-
-                override fun onPermissionDenied(p0: PermissionDeniedResponse?) {
-                    // Permission denied, show a toast message
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Storage permission is necessary to read files!",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-
-                override fun onPermissionRationaleShouldBeShown(
-                    p0: PermissionRequest?,
-                    permissionToken: PermissionToken?
-                ) {
-                    // Continue permission request if needed
-                    permissionToken!!.continuePermissionRequest()
-                }
-            }).check()
+    private fun requestStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ActivityCompat.requestPermissions(
+                this, arrayOf(Manifest.permission.READ_MEDIA_AUDIO),
+                AUDIO_FILES_PERMISSION_CODE
+            )
+        } else {
+            ActivityCompat.requestPermissions(
+                this, arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
+                AUDIO_FILES_PERMISSION_CODE
+            )
+        }
     }
 
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
+        if (requestCode == AUDIO_FILES_PERMISSION_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                queryAudioFiles()
+            }
+            else {
+                Toast.makeText(this, "Storage permission is necessary to read files!", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    @SuppressLint("MissingSuperCall")
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (backPressCount != 0) {
-            finish()
+            finishAffinity()
             return
         }
 
@@ -172,14 +172,18 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-
-        binding.recyclerViewSongs.adapter = SongAdapter(songsList, this).also {
-            it.notifyDataSetChanged()
-        }
+//
+//        binding.recyclerViewSongs.adapter = SongAdapter(this).also {
+//            it.updateList(songsList)
+//        }
 
         // Scroll to current playing song
         val songIndex = MusicPlayerActivity.songIndex
         if (songIndex != RecyclerView.NO_POSITION)
             layoutManager.scrollToPosition(songIndex)
+    }
+
+    private companion object {
+        private const val AUDIO_FILES_PERMISSION_CODE = 999
     }
 }

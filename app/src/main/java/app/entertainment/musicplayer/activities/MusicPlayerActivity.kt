@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
+import android.graphics.BitmapFactory
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.IBinder
@@ -14,22 +15,23 @@ import android.widget.SeekBar
 import android.widget.SeekBar.OnSeekBarChangeListener
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import app.entertainment.musicplayer.MusicApplication
 import app.entertainment.musicplayer.R
 import app.entertainment.musicplayer.databinding.ActivityMusicPlayerBinding
 import app.entertainment.musicplayer.models.Song
-import app.entertainment.musicplayer.notifications.MusicApplication
 import app.entertainment.musicplayer.services.MusicService
 import app.entertainment.musicplayer.utils.NEXT
 import app.entertainment.musicplayer.utils.PLAY_PAUSE
 import app.entertainment.musicplayer.utils.PREVIOUS
 import app.entertainment.musicplayer.utils.STOP
+import app.entertainment.musicplayer.utils.convertToMMSS
+import app.entertainment.musicplayer.utils.getImageArt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.IOException
-import java.util.concurrent.TimeUnit
 
 
 class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListener {
@@ -38,6 +40,8 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
 
     private lateinit var binding: ActivityMusicPlayerBinding
     private lateinit var musicServiceIntent: Intent
+
+    private var musicService: MusicService? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,7 +62,7 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
         binding.seekBar.setOnSeekBarChangeListener(object : OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                 if (fromUser)
-                    musicService!!.mediaPlayer!!.seekTo(progress)
+                    musicService?.mediaPlayer?.seekTo(progress)
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
@@ -145,6 +149,9 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
             reset()
             try {
                 setDataSource(songsList!![songIndex].path)
+                getImageArt(songsList!![songIndex].path)?.let {
+                    binding.imgMusicIconBig.setImageBitmap(BitmapFactory.decodeByteArray(it, 0, it.size))
+                }
                 prepare()
                 start()
                 binding.seekBar.progress = 0
@@ -250,7 +257,7 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
 
                     STOP -> {
                         // Stop the foreground service and release resources
-                        musicService!!.mediaPlayer!!.pause()
+                        musicService?.mediaPlayer?.pause()
 
                         MusicApplication.dismissNotification()
 
@@ -258,7 +265,7 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
                         binding.imgPausePlay.setImageResource(R.drawable.ic_baseline_play_circle_24)
 
                         // Stop the service and unbind it
-                        musicService!!.stopService(musicServiceIntent)
+                        musicService?.stopService(musicServiceIntent)
                         unbindService(serviceConnection)
                         return
                     }
@@ -272,7 +279,6 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
             // Add intent actions for Action Buttons
             arrayOf(PLAY_PAUSE, PREVIOUS, NEXT, STOP).forEach(this::addAction)
 
-            // Register the BroadcastReceiver
             registerReceiver(notificationReceiver, this)
         }
     }
@@ -282,7 +288,7 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
      */
     override fun onCompletion(mp: MediaPlayer?) {
         // don't play next song automatically, if current song is last
-        if (songIndex == songsList!!.lastIndex) return
+        if (songIndex == songsList?.lastIndex) return
 
         binding.imgNext.performClick()
     }
@@ -292,21 +298,5 @@ class MusicPlayerActivity : AppCompatActivity(), MediaPlayer.OnCompletionListene
             private set
         var songIndex: Int = -1
             private set
-        private var musicService: MusicService? = null
-
-        /**
-         * Converts a duration in milliseconds to a string representation in the format MM:SS (minutes and seconds).
-         *
-         * @param duration The duration in milliseconds to be converted.
-         * @return A string in the format MM:SS representing the converted duration.
-         */
-        fun convertToMMSS(duration: Long): String {
-            // Convert the duration to minutes and seconds
-            val minutes = TimeUnit.MILLISECONDS.toMinutes(duration) % TimeUnit.HOURS.toMinutes(1)
-            val seconds = TimeUnit.MILLISECONDS.toSeconds(duration) % TimeUnit.MINUTES.toSeconds(1)
-
-            // Format the minutes and seconds as MM:SS
-            return String.format("%02d:%02d", minutes, seconds)
-        }
     }
 }

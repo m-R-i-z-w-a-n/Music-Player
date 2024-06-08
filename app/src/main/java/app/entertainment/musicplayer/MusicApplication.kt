@@ -1,4 +1,4 @@
-package app.entertainment.musicplayer.notifications
+package app.entertainment.musicplayer
 
 import android.annotation.SuppressLint
 import android.app.Application
@@ -13,8 +13,8 @@ import android.os.Build
 import android.support.v4.media.session.MediaSessionCompat
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
-import app.entertainment.musicplayer.R
 import app.entertainment.musicplayer.activities.MusicPlayerActivity
+import app.entertainment.musicplayer.notifications.NotificationReceiver
 import app.entertainment.musicplayer.services.MusicService
 import app.entertainment.musicplayer.utils.CHANNEL_ID
 import app.entertainment.musicplayer.utils.NEXT
@@ -42,7 +42,6 @@ class MusicApplication : Application() {
         /**
          * Shows a notification with playback controls
          */
-        @SuppressLint("NotificationPermission", "MissingPermission")
         fun showNotification(
             context: Context,
             musicService: MusicService,
@@ -88,7 +87,8 @@ class MusicApplication : Application() {
                 setContentTitle(MusicPlayerActivity.songsList!![MusicPlayerActivity.songIndex].title)
                 setSmallIcon(R.drawable.ic_music_icon)
                 setLargeIcon(getIcon(context))
-                setStyle(androidx.media.app.NotificationCompat.MediaStyle().setMediaSession(mediaSession.sessionToken))
+                setStyle(androidx.media.app.NotificationCompat.MediaStyle().setMediaSession(
+                    mediaSession.sessionToken))
                 priority = NotificationCompat.PRIORITY_DEFAULT
                 setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 
